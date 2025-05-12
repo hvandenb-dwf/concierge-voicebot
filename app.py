@@ -1,22 +1,10 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
-from twilio.twiml.voice_response import VoiceResponse, Gather
-from openai import OpenAI
-import os
-import traceback
-
-app = FastAPI()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-BOT_MODE = 2  # default; can later be updated via admin panel
-
-from fastapi import FastAPI, Request
-from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from openai import OpenAI
-from elevenlabs import generate, save
+from elevenlabs import ElevenLabs
+from elevenlabs.client import VoiceSettings
 from uuid import uuid4
 import os
 import traceback
@@ -25,6 +13,7 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
 BOT_MODE = 2  # default; can later be updated via admin panel
 
@@ -51,15 +40,17 @@ def generate_bot_reply(user_input):
 
 def generate_audio_from_text(text: str) -> str:
     try:
-        audio = generate(
+        voice_id = "EXAVITQu4vr4xnSDxMaL"  # Default ElevenLabs voice ID
+        audio = eleven_client.text_to_speech.convert(
+            voice_id=voice_id,
+            model_id="eleven_monolingual_v1",
             text=text,
-            voice="Rachel",  # adjust voice here if needed
-            model="eleven_monolingual_v1",
-            api_key=os.getenv("ELEVEN_API_KEY")
+            voice_settings=VoiceSettings(stability=0.5, similarity_boost=0.75)
         )
         os.makedirs("static/audio", exist_ok=True)
         filename = f"static/audio/{uuid4()}.mp3"
-        save(audio, filename)
+        with open(filename, "wb") as f:
+            f.write(audio)
         print(f"Audio saved to {filename}")
         return f"/static/audio/{os.path.basename(filename)}"
     except Exception as e:
