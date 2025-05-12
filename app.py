@@ -30,12 +30,22 @@ async def voice():
 
 @app.post("/gather")
 async def gather(request: Request):
-    form = await request.form()
-    speech_result = form.get("SpeechResult", "")
+    try:
+        form = await request.form()
+        speech_result = form.get("SpeechResult", "").strip()
 
-    bot_reply = generate_bot_reply(speech_result)
+        if not speech_result:
+            speech_result = "I didn't catch that. Please try again."
 
-    response = VoiceResponse()
-    response.say(bot_reply)
-    response.redirect('/voice')  # loop for testing
-    return Response(content=str(response), media_type="application/xml")
+        bot_reply = generate_bot_reply(speech_result)
+
+        response = VoiceResponse()
+        response.say(bot_reply)
+        response.redirect('/voice')  # repeat the loop
+        return Response(content=str(response), media_type="application/xml")
+
+    except Exception as e:
+        print(f"Error in /gather: {e}")
+        response = VoiceResponse()
+        response.say("Sorry, something went wrong. Please try again later.")
+        return Response(content=str(response), media_type="application/xml")
