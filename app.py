@@ -8,6 +8,7 @@ from elevenlabs.client import VoiceSettings
 from uuid import uuid4
 import os
 import traceback
+import time
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -19,6 +20,7 @@ BOT_MODE = 2  # default; can later be updated via admin panel
 
 def generate_bot_reply(user_input):
     try:
+        start = time.time()
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -32,7 +34,7 @@ def generate_bot_reply(user_input):
             max_tokens=100
         )
         reply = response.choices[0].message.content.strip()
-        print(f"GPT Reply: {reply}")
+        print(f"GPT Reply: {reply} (Generated in {time.time() - start:.2f}s)")
         return reply
     except Exception:
         print("OpenAI error:", traceback.format_exc())
@@ -41,7 +43,7 @@ def generate_bot_reply(user_input):
 def generate_audio_from_text(text: str) -> str:
     try:
         voice_id = "EXAVITQu4vr4xnSDxMaL"  # Default ElevenLabs voice ID
-        audio = eleven_client.text_to_speech.convert(
+        audio_stream = eleven_client.text_to_speech.convert(
             voice_id=voice_id,
             model_id="eleven_monolingual_v1",
             text=text,
@@ -50,7 +52,8 @@ def generate_audio_from_text(text: str) -> str:
         os.makedirs("static/audio", exist_ok=True)
         filename = f"static/audio/{uuid4()}.mp3"
         with open(filename, "wb") as f:
-            f.write(audio)
+            for chunk in audio_stream:
+                f.write(chunk)
         print(f"Audio saved to {filename}")
         return f"/static/audio/{os.path.basename(filename)}"
     except Exception as e:
@@ -79,6 +82,7 @@ async def gather(request: Request):
         audio_path = generate_audio_from_text(bot_reply)
 
         response = VoiceResponse()
+        response.say("Een momentje alsjeblieft...", voice='alice', language='nl-NL')
         if audio_path:
             response.play(f"https://concierge-voicebot.onrender.com{audio_path}")
         else:
