@@ -24,7 +24,9 @@ def generate_bot_reply(user_input):
             ],
             max_tokens=100
         )
-        return response.choices[0].message["content"].strip()
+        reply = response.choices[0].message["content"].strip()
+        print(f"GPT Reply: {reply}")  # log GPT response to Render logs
+        return reply
     except Exception as e:
         print(f"OpenAI error: {e}")
         return "Sorry, I couldn't understand that."
