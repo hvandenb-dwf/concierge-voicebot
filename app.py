@@ -22,7 +22,6 @@ BOT_MODE = 2  # default; can later be updated via admin panel
 UPLOADTHING_TOKEN = os.getenv("UPLOADTHING_TOKEN")
 UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
 
-
 def generate_bot_reply(user_input):
     try:
         start = time.time()
@@ -45,10 +44,11 @@ def generate_bot_reply(user_input):
         print("OpenAI error:", traceback.format_exc())
         return "Sorry, ik kon dat niet begrijpen."
 
-
 def generate_audio_from_text(text: str) -> str:
     try:
         voice_id = "EXAVITQu4vr4xnSDxMaL"
+        print(f"UPLOADTHING_TOKEN = {UPLOADTHING_TOKEN}")  # DEBUG: print token to verify it's loaded
+
         audio_stream = eleven_client.text_to_speech.convert(
             voice_id=voice_id,
             model_id="eleven_monolingual_v1",
@@ -79,7 +79,6 @@ def generate_audio_from_text(text: str) -> str:
         print(f"ElevenLabs or Upload error: {e}")
         return None
 
-
 @app.post("/voice")
 async def voice():
     response = VoiceResponse()
@@ -88,7 +87,6 @@ async def voice():
     response.append(gather)
     response.redirect('/voice')
     return Response(content=str(response), media_type="application/xml")
-
 
 @app.post("/gather")
 async def gather(request: Request):
