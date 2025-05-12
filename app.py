@@ -1,18 +1,19 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from twilio.twiml.voice_response import VoiceResponse, Gather
-import openai
+from openai import OpenAI
 import os
+import traceback
 
 app = FastAPI()
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 BOT_MODE = 2  # default; can later be updated via admin panel
 
 def generate_bot_reply(user_input):
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": (
@@ -24,11 +25,11 @@ def generate_bot_reply(user_input):
             ],
             max_tokens=100
         )
-        reply = response.choices[0].message["content"].strip()
+        reply = response.choices[0].message.content.strip()
         print(f"GPT Reply: {reply}")  # log GPT response to Render logs
         return reply
-    except Exception as e:
-        print(f"OpenAI error: {e}")
+    except Exception:
+        print("OpenAI error:", traceback.format_exc())
         return "Sorry, I couldn't understand that."
 
 @app.post("/voice")
