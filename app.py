@@ -9,6 +9,8 @@ from uuid import uuid4
 import os
 import traceback
 import time
+import requests
+import tempfile
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -17,6 +19,9 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
 BOT_MODE = 2  # default; can later be updated via admin panel
+UPLOADTHING_TOKEN = os.getenv("UPLOADTHING_TOKEN")
+UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
+
 
 def generate_bot_reply(user_input):
     try:
@@ -40,25 +45,40 @@ def generate_bot_reply(user_input):
         print("OpenAI error:", traceback.format_exc())
         return "Sorry, ik kon dat niet begrijpen."
 
+
 def generate_audio_from_text(text: str) -> str:
     try:
-        voice_id = "EXAVITQu4vr4xnSDxMaL"  # Default ElevenLabs voice ID
+        voice_id = "EXAVITQu4vr4xnSDxMaL"
         audio_stream = eleven_client.text_to_speech.convert(
             voice_id=voice_id,
             model_id="eleven_monolingual_v1",
             text=text,
             voice_settings=VoiceSettings(stability=0.5, similarity_boost=0.75)
         )
-        os.makedirs("static/audio", exist_ok=True)
-        filename = f"static/audio/{uuid4()}.mp3"
-        with open(filename, "wb") as f:
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
             for chunk in audio_stream:
-                f.write(chunk)
-        print(f"Audio saved to {filename}")
-        return f"/static/audio/{os.path.basename(filename)}"
+                tmp_file.write(chunk)
+            tmp_file_path = tmp_file.name
+
+        files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
+        headers = {"Authorization": f"UploadThing {UPLOADTHING_TOKEN}"}
+
+        response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
+        os.unlink(tmp_file_path)
+
+        if response.status_code == 200:
+            uploaded_url = response.json()[0]["fileUrl"]
+            print(f"Uploaded to: {uploaded_url}")
+            return uploaded_url
+        else:
+            print(f"UploadThing error: {response.status_code}, {response.text}")
+            return None
+
     except Exception as e:
-        print(f"ElevenLabs error: {e}")
+        print(f"ElevenLabs or Upload error: {e}")
         return None
+
 
 @app.post("/voice")
 async def voice():
@@ -68,6 +88,7 @@ async def voice():
     response.append(gather)
     response.redirect('/voice')
     return Response(content=str(response), media_type="application/xml")
+
 
 @app.post("/gather")
 async def gather(request: Request):
@@ -79,11 +100,11 @@ async def gather(request: Request):
             speech_result = "Ik heb niets gehoord. Kunt u het opnieuw proberen?"
 
         bot_reply = generate_bot_reply(speech_result)
-        audio_path = generate_audio_from_text(bot_reply)
+        audio_url = generate_audio_from_text(bot_reply)
 
         response = VoiceResponse()
-        if audio_path:
-            response.play(f"https://concierge-voicebot.onrender.com{audio_path}")
+        if audio_url:
+            response.play(audio_url)
         else:
             response.say(bot_reply, voice='alice', language='nl-NL')
 
