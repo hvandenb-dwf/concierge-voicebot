@@ -82,7 +82,6 @@ async def gather(request: Request):
         audio_path = generate_audio_from_text(bot_reply)
 
         response = VoiceResponse()
-        response.say("Een momentje alsjeblieft...", voice='alice', language='nl-NL')
         if audio_path:
             response.play(f"https://concierge-voicebot.onrender.com{audio_path}")
         else:
