@@ -61,10 +61,14 @@ def generate_audio_from_text(text: str) -> str:
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
 
-        files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
+        file_data = open(tmp_file_path, "rb")
+        upload_files = {
+            "files": (f"{uuid4()}.mp3", file_data, "audio/mpeg")
+        }
         headers = {"Authorization": f"Bearer {UPLOADTHING_TOKEN}"}
 
-        response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
+        response = requests.post(UPLOADTHING_ENDPOINT, files=upload_files, headers=headers)
+        file_data.close()
         os.unlink(tmp_file_path)
 
         if response.status_code == 200:
