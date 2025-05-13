@@ -62,22 +62,17 @@ def generate_audio_from_text(text: str) -> str:
             tmp_file_path = tmp_file.name
 
         files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
-        print("UploadThing Token:", repr(UPLOADTHING_TOKEN))  # DEBUG
         headers = {"x-uploadthing-api-key": UPLOADTHING_TOKEN}
-
-        print("UploadThing headers:", headers)
-        print("UploadThing endpoint:", UPLOADTHING_ENDPOINT)
 
         response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
         os.unlink(tmp_file_path)
-
-        print(f"UploadThing response: {response.status_code}, {response.text}")
 
         if response.status_code == 200:
             uploaded_url = response.json()[0]["fileUrl"]
             print(f"Uploaded to: {uploaded_url}")
             return uploaded_url
         else:
+            print(f"UploadThing error: {response.status_code}, {response.text}")
             return None
 
     except Exception as e:
