@@ -20,7 +20,7 @@ eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
 BOT_MODE = 2  # default; can later be updated via admin panel
 UPLOADTHING_TOKEN = os.getenv("UPLOADTHING_TOKEN")
-UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles-signed"
+UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
 
 def generate_bot_reply(user_input):
     try:
@@ -47,8 +47,6 @@ def generate_bot_reply(user_input):
 def generate_audio_from_text(text: str) -> str:
     try:
         voice_id = "EXAVITQu4vr4xnSDxMaL"
-        print(f"📦 Upload Headers: {{'Authorization': 'Bearer {UPLOADTHING_TOKEN}'}}")  # Debug header output
-
         audio_stream = eleven_client.text_to_speech.convert(
             voice_id=voice_id,
             model_id="eleven_monolingual_v1",
@@ -61,14 +59,10 @@ def generate_audio_from_text(text: str) -> str:
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
 
-        file_data = open(tmp_file_path, "rb")
-        upload_files = {
-            "file": (f"{uuid4()}.mp3", file_data, "audio/mpeg")
-        }
-        headers = {"Authorization": f"Bearer {UPLOADTHING_TOKEN}"}
+        files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
+        headers = {"Authorization": f"UploadThing {UPLOADTHING_TOKEN}"}
 
-        response = requests.post(UPLOADTHING_ENDPOINT, files=upload_files, headers=headers)
-        file_data.close()
+        response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
         os.unlink(tmp_file_path)
 
         if response.status_code == 200:
@@ -82,10 +76,6 @@ def generate_audio_from_text(text: str) -> str:
     except Exception as e:
         print(f"ElevenLabs or Upload error: {e}")
         return None
-
-@app.get("/debug-token")
-def debug_token():
-    return {"UPLOADTHING_TOKEN": os.getenv("UPLOADTHING_TOKEN")}
 
 @app.post("/voice")
 async def voice():
