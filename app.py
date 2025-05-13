@@ -15,12 +15,16 @@ import tempfile
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Environment-based clients
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
-BOT_MODE = 2  # default; can later be updated via admin panel
-UPLOADTHING_TOKEN = os.getenv("UPLOADTHING_TOKEN")
-UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
+# UploadThing (Legacy API)
+UPLOADTHING_SECRET = os.getenv("UPLOADTHING_SECRET")
+UPLOADTHING_APP_ID = os.getenv("UPLOADTHING_APP_ID")
+UPLOADTHING_ENDPOINT = f"https://uploadthing.com/api/uploadFiles?appId={UPLOADTHING_APP_ID}"
+
+BOT_MODE = 2  # default
 
 def generate_bot_reply(user_input):
     try:
@@ -60,7 +64,7 @@ def generate_audio_from_text(text: str) -> str:
             tmp_file_path = tmp_file.name
 
         files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
-        headers = {"Authorization": f"UploadThing {UPLOADTHING_TOKEN}"}
+        headers = {"Authorization": UPLOADTHING_SECRET}
 
         response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
         os.unlink(tmp_file_path)
