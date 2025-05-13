@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from openai import OpenAI
@@ -18,12 +18,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
-# UploadThing (Legacy API)
-UPLOADTHING_SECRET = os.getenv("UPLOADTHING_SECRET")
-UPLOADTHING_APP_ID = os.getenv("UPLOADTHING_APP_ID")
-UPLOADTHING_ENDPOINT = f"https://uploadthing.com/api/uploadFiles?appId={UPLOADTHING_APP_ID}"
+BOT_MODE = 2  # default; can later be updated via admin panel
 
-BOT_MODE = 2  # default
+# UploadThing (SDK v7)
+UPLOADTHING_TOKEN = os.getenv("UPLOADTHING_TOKEN")
+UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
 
 def generate_bot_reply(user_input):
     try:
@@ -49,7 +48,6 @@ def generate_bot_reply(user_input):
 
 def generate_audio_from_text(text: str) -> str:
     try:
-        print("[DEBUG] Generating ElevenLabs audio...")
         voice_id = "EXAVITQu4vr4xnSDxMaL"
         audio_stream = eleven_client.text_to_speech.convert(
             voice_id=voice_id,
@@ -58,39 +56,27 @@ def generate_audio_from_text(text: str) -> str:
             voice_settings=VoiceSettings(stability=0.5, similarity_boost=0.75)
         )
 
-        chunk_count = 0
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
             for chunk in audio_stream:
-                chunk_count += 1
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
 
-        print(f"[DEBUG] Audio stream received {chunk_count} chunks")
-        print(f"[DEBUG] Audio file saved to: {tmp_file_path}")
-        print(f"[DEBUG] File exists: {os.path.exists(tmp_file_path)} | Size: {os.path.getsize(tmp_file_path) if os.path.exists(tmp_file_path) else 'n/a'} bytes")
-
         files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
-        headers = {"Authorization": UPLOADTHING_SECRET}
-
-        print(f"[DEBUG] Uploading to UploadThing...")
-        print(f"[DEBUG] Upload Headers: {headers}")
-        print(f"[DEBUG] Upload Endpoint: {UPLOADTHING_ENDPOINT}")
+        headers = {"Authorization": f"Bearer {UPLOADTHING_TOKEN}"}
 
         response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
         os.unlink(tmp_file_path)
 
-        print(f"[DEBUG] UploadThing status: {response.status_code}")
-        print(f"[DEBUG] UploadThing response: {response.text}")
-
         if response.status_code == 200:
             uploaded_url = response.json()[0]["fileUrl"]
-            print(f"[DEBUG] Uploaded to: {uploaded_url}")
+            print(f"Uploaded to: {uploaded_url}")
             return uploaded_url
         else:
+            print(f"UploadThing error: {response.status_code}, {response.text}")
             return None
 
     except Exception as e:
-        print(f"[ERROR] ElevenLabs or Upload error: {e}")
+        print(f"ElevenLabs or Upload error: {e}")
         return None
 
 @app.post("/voice")
@@ -108,36 +94,23 @@ async def gather(request: Request):
         form = await request.form()
         speech_result = form.get("SpeechResult", "").strip()
 
-        print(f"[DEBUG] Speech recognized: {speech_result}")
-
         if not speech_result:
             speech_result = "Ik heb niets gehoord. Kunt u het opnieuw proberen?"
 
         bot_reply = generate_bot_reply(speech_result)
         audio_url = generate_audio_from_text(bot_reply)
 
-        print(f"[DEBUG] Final audio URL: {audio_url}")
-
         response = VoiceResponse()
         if audio_url:
             response.play(audio_url)
         else:
-            print("[DEBUG] Fallback to Twilio voice")
             response.say(bot_reply, voice='alice', language='nl-NL')
 
         response.redirect('/voice')
         return Response(content=str(response), media_type="application/xml")
 
     except Exception as e:
-        print(f"[ERROR] in /gather: {e}")
+        print(f"Error in /gather: {e}")
         response = VoiceResponse()
         response.say("Er is iets misgegaan. Probeert u het later nog eens.", voice='alice', language='nl-NL')
         return Response(content=str(response), media_type="application/xml")
-
-@app.get("/debug-upload-headers")
-async def debug_upload_headers():
-    return JSONResponse({
-        "UPLOADTHING_APP_ID": os.getenv("UPLOADTHING_APP_ID"),
-        "UPLOADTHING_SECRET": os.getenv("UPLOADTHING_SECRET"),
-        "UPLOADTHING_ENDPOINT": UPLOADTHING_ENDPOINT
-    })
