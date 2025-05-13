@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from openai import OpenAI
@@ -15,7 +15,6 @@ import tempfile
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Environment-based clients
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
@@ -116,3 +115,11 @@ async def gather(request: Request):
         response = VoiceResponse()
         response.say("Er is iets misgegaan. Probeert u het later nog eens.", voice='alice', language='nl-NL')
         return Response(content=str(response), media_type="application/xml")
+
+@app.get("/debug-upload-headers")
+async def debug_upload_headers():
+    return JSONResponse({
+        "UPLOADTHING_APP_ID": os.getenv("UPLOADTHING_APP_ID"),
+        "UPLOADTHING_SECRET": os.getenv("UPLOADTHING_SECRET"),
+        "UPLOADTHING_ENDPOINT": UPLOADTHING_ENDPOINT
+    })
