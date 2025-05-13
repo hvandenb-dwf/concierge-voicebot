@@ -47,7 +47,7 @@ def generate_bot_reply(user_input):
 def generate_audio_from_text(text: str) -> str:
     try:
         voice_id = "EXAVITQu4vr4xnSDxMaL"
-        print(f"UPLOADTHING_TOKEN = {UPLOADTHING_TOKEN}")  # DEBUG: check token
+        print(f"📦 Upload Headers: {{'Authorization': 'Bearer {UPLOADTHING_TOKEN}'}}")  # Debug header output
 
         audio_stream = eleven_client.text_to_speech.convert(
             voice_id=voice_id,
@@ -82,6 +82,10 @@ def generate_audio_from_text(text: str) -> str:
     except Exception as e:
         print(f"ElevenLabs or Upload error: {e}")
         return None
+
+@app.get("/debug-token")
+def debug_token():
+    return {"UPLOADTHING_TOKEN": os.getenv("UPLOADTHING_TOKEN")}
 
 @app.post("/voice")
 async def voice():
