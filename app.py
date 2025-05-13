@@ -20,7 +20,7 @@ eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
 BOT_MODE = 2  # default; can later be updated via admin panel
 UPLOADTHING_TOKEN = os.getenv("UPLOADTHING_TOKEN")
-UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
+UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles-signed"
 
 def generate_bot_reply(user_input):
     try:
@@ -47,7 +47,7 @@ def generate_bot_reply(user_input):
 def generate_audio_from_text(text: str) -> str:
     try:
         voice_id = "EXAVITQu4vr4xnSDxMaL"
-        print(f"UPLOADTHING_TOKEN = {UPLOADTHING_TOKEN}")  # DEBUG: print token to verify it's loaded
+        print(f"UPLOADTHING_TOKEN = {UPLOADTHING_TOKEN}")  # DEBUG: check token
 
         audio_stream = eleven_client.text_to_speech.convert(
             voice_id=voice_id,
