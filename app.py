@@ -22,7 +22,7 @@ BOT_MODE = 2  # default; can later be updated via admin panel
 
 # UploadThing (SDK v7+)
 UPLOADTHING_TOKEN = os.getenv("UPLOADTHING_TOKEN")
-UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
+UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/v1/files"
 
 def generate_bot_reply(user_input):
     try:
