@@ -63,7 +63,7 @@ def generate_audio_from_text(text: str) -> str:
 
         files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
         print("UploadThing Token:", repr(UPLOADTHING_TOKEN))  # DEBUG
-        headers = {"Authorization": f"Bearer {UPLOADTHING_TOKEN}"}
+        headers = {"x-uploadthing-api-key": UPLOADTHING_TOKEN}
 
         print("UploadThing headers:", headers)
         print("UploadThing endpoint:", UPLOADTHING_ENDPOINT)
