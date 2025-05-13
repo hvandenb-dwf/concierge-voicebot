@@ -62,7 +62,7 @@ def generate_audio_from_text(text: str) -> str:
             tmp_file_path = tmp_file.name
 
         files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
-        headers = {"Authorization": f"UploadThing {UPLOADTHING_TOKEN}"}
+        headers = {"Authorization": f"Bearer {UPLOADTHING_TOKEN}"}
 
         response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
         os.unlink(tmp_file_path)
