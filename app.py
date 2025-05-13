@@ -63,7 +63,7 @@ def generate_audio_from_text(text: str) -> str:
 
         file_data = open(tmp_file_path, "rb")
         upload_files = {
-            "files": (f"{uuid4()}.mp3", file_data, "audio/mpeg")
+            "file": (f"{uuid4()}.mp3", file_data, "audio/mpeg")
         }
         headers = {"Authorization": f"Bearer {UPLOADTHING_TOKEN}"}
 
