@@ -20,9 +20,10 @@ eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
 BOT_MODE = 2  # default; can later be updated via admin panel
 
-# UploadThing (SDK v7+)
-UPLOADTHING_TOKEN = os.getenv("UPLOADTHING_TOKEN")
-UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/v1/files"
+# UploadThing (Legacy API)
+UPLOADTHING_SECRET = "sk_live_b28d98fc27695b207b4b4ac56cbb17e11ab70109a16ada03ef0f96cac804ba6f"  # tijdelijk hardcoded voor test
+UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
+
 
 def generate_bot_reply(user_input):
     try:
@@ -46,6 +47,7 @@ def generate_bot_reply(user_input):
         print("OpenAI error:", traceback.format_exc())
         return "Sorry, ik kon dat niet begrijpen."
 
+
 def generate_audio_from_text(text: str) -> str:
     try:
         voice_id = "EXAVITQu4vr4xnSDxMaL"
@@ -62,7 +64,7 @@ def generate_audio_from_text(text: str) -> str:
             tmp_file_path = tmp_file.name
 
         files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
-        headers = {"x-uploadthing-api-key": UPLOADTHING_TOKEN}
+        headers = {"x-uploadthing-api-key": UPLOADTHING_SECRET}
 
         response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
         os.unlink(tmp_file_path)
@@ -79,6 +81,7 @@ def generate_audio_from_text(text: str) -> str:
         print(f"ElevenLabs or Upload error: {e}")
         return None
 
+
 @app.post("/voice")
 async def voice():
     response = VoiceResponse()
@@ -87,6 +90,7 @@ async def voice():
     response.append(gather)
     response.redirect('/voice')
     return Response(content=str(response), media_type="application/xml")
+
 
 @app.post("/gather")
 async def gather(request: Request):
