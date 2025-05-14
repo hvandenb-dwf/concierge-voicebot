@@ -1,3 +1,6 @@
+print("✅ Deze versie is gecommit op 14 mei 16:10")
+
+
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
