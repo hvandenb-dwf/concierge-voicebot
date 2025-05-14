@@ -11,6 +11,8 @@ import traceback
 import time
 import requests
 import tempfile
+import cloudinary
+import cloudinary.uploader
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -18,12 +20,14 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
+# Configure Cloudinary
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET")
+)
+
 BOT_MODE = 2  # default; can later be updated via admin panel
-
-# UploadThing (Legacy API)
-UPLOADTHING_SECRET = "sk_live_b28d98fc27695b207b4b4ac56cbb17e11ab70109a16ada03ef0f96cac804ba6f"  # tijdelijk hardcoded voor test
-UPLOADTHING_ENDPOINT = "https://uploadthing.com/api/uploadFiles"
-
 
 def generate_bot_reply(user_input):
     try:
@@ -47,7 +51,6 @@ def generate_bot_reply(user_input):
         print("OpenAI error:", traceback.format_exc())
         return "Sorry, ik kon dat niet begrijpen."
 
-
 def generate_audio_from_text(text: str) -> str:
     try:
         voice_id = "EXAVITQu4vr4xnSDxMaL"
@@ -63,24 +66,17 @@ def generate_audio_from_text(text: str) -> str:
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
 
-        files = {"files": ("response.mp3", open(tmp_file_path, "rb"), "audio/mpeg")}
-        headers = {"x-uploadthing-api-key": UPLOADTHING_SECRET}
-
-        response = requests.post(UPLOADTHING_ENDPOINT, files=files, headers=headers)
+        # Upload to Cloudinary
+        upload_result = cloudinary.uploader.upload(tmp_file_path, resource_type="video", folder="voicebot-audio")
         os.unlink(tmp_file_path)
 
-        if response.status_code == 200:
-            uploaded_url = response.json()[0]["fileUrl"]
-            print(f"Uploaded to: {uploaded_url}")
-            return uploaded_url
-        else:
-            print(f"UploadThing error: {response.status_code}, {response.text}")
-            return None
+        uploaded_url = upload_result.get("secure_url")
+        print(f"Uploaded to: {uploaded_url}")
+        return uploaded_url
 
     except Exception as e:
-        print(f"ElevenLabs or Upload error: {e}")
+        print(f"ElevenLabs or Cloudinary error: {e}")
         return None
-
 
 @app.post("/voice")
 async def voice():
@@ -90,7 +86,6 @@ async def voice():
     response.append(gather)
     response.redirect('/voice')
     return Response(content=str(response), media_type="application/xml")
-
 
 @app.post("/gather")
 async def gather(request: Request):
