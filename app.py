@@ -1,4 +1,5 @@
 print("✅ Deze versie is gecommit op 14 mei 16:10")
+print("🎤 Herkende input:", speech_result)
 
 
 from fastapi import FastAPI, Request
@@ -87,7 +88,7 @@ async def voice():
     gather = Gather(input='speech', action='/gather', method='POST', timeout=5, language='nl-NL')
     gather.say("Welkom bij de conciërgebot. Stel uw vraag na de piep.", voice='alice', language='nl-NL')
     response.append(gather)
-    response.redirect('/voice')
+    response.redirect('https://concierge-voicebot.onrender.com/voice')
     return Response(content=str(response), media_type="application/xml")
 
 @app.post("/gather")
