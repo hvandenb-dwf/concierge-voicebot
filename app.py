@@ -1,7 +1,3 @@
-print("✅ Deze versie is gecommit op 14 mei 16:10")
-print("🎤 Herkende input:", speech_result)
-
-
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
@@ -15,8 +11,6 @@ import traceback
 import time
 import requests
 import tempfile
-import cloudinary
-import cloudinary.uploader
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -24,14 +18,13 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
 
-# Configure Cloudinary
-cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET")
-)
-
 BOT_MODE = 2  # default; can later be updated via admin panel
+
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_UPLOAD_URL = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/auto/upload"
+CLOUDINARY_UPLOAD_PRESET = "voicebot-audio"
 
 def generate_bot_reply(user_input):
     try:
@@ -57,12 +50,17 @@ def generate_bot_reply(user_input):
 
 def generate_audio_from_text(text: str) -> str:
     try:
-        voice_id = "EXAVITQu4vr4xnSDxMaL"
+        voice_id = "Arnold"  # Dutch-compatible ElevenLabs voice
         audio_stream = eleven_client.text_to_speech.convert(
             voice_id=voice_id,
             model_id="eleven_monolingual_v1",
             text=text,
-            voice_settings=VoiceSettings(stability=0.5, similarity_boost=0.75)
+            voice_settings=VoiceSettings(
+                stability=0.5,
+                similarity_boost=0.75,
+                style=0.3,
+                use_speaker_boost=True
+            )
         )
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
@@ -70,13 +68,22 @@ def generate_audio_from_text(text: str) -> str:
                 tmp_file.write(chunk)
             tmp_file_path = tmp_file.name
 
-        # Upload to Cloudinary
-        upload_result = cloudinary.uploader.upload(tmp_file_path, resource_type="video", folder="voicebot-audio")
+        files = {"file": open(tmp_file_path, "rb")}
+        data = {
+            "upload_preset": CLOUDINARY_UPLOAD_PRESET,
+            "api_key": CLOUDINARY_API_KEY,
+            "timestamp": int(time.time())
+        }
+        response = requests.post(CLOUDINARY_UPLOAD_URL, files=files, data=data, auth=(CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET))
         os.unlink(tmp_file_path)
 
-        uploaded_url = upload_result.get("secure_url")
-        print(f"Uploaded to: {uploaded_url}")
-        return uploaded_url
+        if response.status_code == 200:
+            uploaded_url = response.json()["secure_url"]
+            print(f"Uploaded to: {uploaded_url}")
+            return uploaded_url
+        else:
+            print(f"Cloudinary error: {response.status_code}, {response.text}")
+            return None
 
     except Exception as e:
         print(f"ElevenLabs or Cloudinary error: {e}")
@@ -86,9 +93,9 @@ def generate_audio_from_text(text: str) -> str:
 async def voice():
     response = VoiceResponse()
     gather = Gather(input='speech', action='/gather', method='POST', timeout=5, language='nl-NL')
-    gather.say("Welkom bij de conciërgebot. Stel uw vraag na de piep.", voice='alice', language='nl-NL')
+    gather.say("Welkom bij de conciërgebot. Stel uw vraag na de piep.", voice='alice', language='nl-NL')  # Kan later vervangen worden door .play(URL)
     response.append(gather)
-    response.redirect('https://concierge-voicebot.onrender.com/voice')
+    https://concierge-voicebot.onrender.com/voice
     return Response(content=str(response), media_type="application/xml")
 
 @app.post("/gather")
