@@ -1,46 +1,48 @@
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 import os
-import tempfile
 import cloudinary
 import cloudinary.uploader
-from fastapi import FastAPI, Request, Form, Response
 from elevenlabs import ElevenLabs, VoiceSettings
-from twilio.twiml.voice_response import VoiceResponse
-from dotenv import load_dotenv
-
-load_dotenv()
+import openai
 
 app = FastAPI()
 
-# ElevenLabs configuratie
-voice_id = "YUdpWWny7k5yb4QCeweX"  # Ruth - native NL voice
-model_id = "eleven_multilingual_v2"  # multilingual model required for Dutch
+# Serve static files
+app.mount("/static", StaticFiles(directory=os.path.join(os.getcwd(), "static")), name="static")
 
-eleven_client = ElevenLabs(api_key=os.getenv("ELEVEN_API_KEY"))
+# Root route fallback for testing index.html
+def load_index():
+    try:
+        with open("static/index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return "<h1>index.html not found</h1>"
 
-voice_settings = VoiceSettings(
-    stability=0.5,
-    similarity_boost=0.75,
-    style=0.3,
-    use_speaker_boost=True
-)
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    return HTMLResponse(content=load_index())
 
-# Cloudinary configuratie
+# ENV keys (Render will provide these)
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+ELEVEN_API_KEY = os.getenv("ELEVEN_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# Init clients
+openai.api_key = OPENAI_API_KEY
+eleven_client = ElevenLabs(api_key=ELEVEN_API_KEY)
 cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-    secure=True
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET
 )
 
-@app.post("/voice")
-async def voice():
-    response = VoiceResponse()
-    response.gather(
-        input="speech",
-        action="/gather",
-        method="POST"
-    ).say("Welkom bij uw digitale assistent. Wat kan ik voor u doen?")
-    return Response(content=str(response), media_type="application/xml")
+class SpeechData(BaseModel):
+    text: str
 
 @app.post("/gather")
 async def gather(request: Request):
@@ -49,35 +51,47 @@ async def gather(request: Request):
     if not speech_result:
         speech_result = "Ik heb niets gehoord. Kunt u het opnieuw proberen?"
 
-    if "openingstijden" in speech_result.lower():
-        text = "Onze openingstijden zijn van negen tot vijf, maandag tot en met vrijdag."
-    else:
-        text = "Ik heb u niet goed verstaan. Kunt u dat herhalen?"
+    # GPT-4 reply
+    chat_response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Je bent een vriendelijke Nederlandse klantenservice bot."},
+            {"role": "user", "content": speech_result},
+        ]
+    )
+    reply = chat_response.choices[0].message.content.strip()
 
-    # Genereer audiostream
+    # ElevenLabs voice
     audio_stream = eleven_client.text_to_speech.convert(
-        voice_id=voice_id,
-        model_id=model_id,
-        text=text,
-        voice_settings=voice_settings
+        voice_id="YUdpWWny7k5yb4QCeweX",  # Ruth
+        model_id="eleven_multilingual_v2",
+        text=reply,
+        voice_settings=VoiceSettings(
+            stability=0.5,
+            similarity_boost=0.75,
+            style=0.3,
+            use_speaker_boost=True
+        )
     )
 
-    # Schrijf stream chunks naar tijdelijk bestand
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
-        for chunk in audio_stream:
-            tmp.write(chunk)
-        tmp_path = tmp.name
+    # Save audio and upload to Cloudinary
+    audio_path = "response.mp3"
+    with open(audio_path, "wb") as tmp:
+        tmp.write(audio_stream.read())
 
-    # Upload naar Cloudinary
     upload_result = cloudinary.uploader.upload(
-        tmp_path,
+        audio_path,
         resource_type="video",
         folder="voicebot-audio",
-        upload_preset="concierge_voicebot"
+        upload_preset="concierge_voicebot",
     )
-
     secure_url = upload_result.get("secure_url")
 
-    response = VoiceResponse()
-    response.play(secure_url)
-    return Response(content=str(response), media_type="application/xml")
+    twiml_response = f"""
+        <Response>
+            <Play>{secure_url}</Play>
+            <Gather input="speech" action="/gather" method="POST" timeout="6" />
+        </Response>
+    """
+
+    return HTMLResponse(content=twiml_response, media_type="application/xml")
